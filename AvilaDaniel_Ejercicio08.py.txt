@@ -1,0 +1,89 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+data = np.loadtxt('data_to_fit.txt')
+x_obs = data[:,0]
+y_obs = data[:,1]
+sigma_y_obs = data[:,2]
+
+def model_A(x, betas):
+    y = betas[0] + x*betas[1] + betas[2]*x**2
+    return y
+
+def model_B(x, betas):
+    y = betas[0]*(np.exp(-0.5*(x-betas[1])**2/betas[2]**2))
+    return y
+
+def model_C(x, betas):
+    y = betas[0]*(np.exp(-0.5*(x-betas[1])**2/betas[2]**2))
+    y += betas[0]*(np.exp(-0.5*(x-betas[3])**2/betas[4]**2))
+    return y
+
+def loglike(x_obs, y_obs, sigma_y_obs, betas, model):
+    n_obs = len(y_obs)
+    l = 0.0
+    for i in range(n_obs):
+        if(model==1):
+            l += -0.5*(y_obs[i]-model_A(x_obs[i], betas))**2/sigma_y_obs[i]**2
+        if(model==2):
+            l += -0.5*(y_obs[i]-model_B(x_obs[i], betas))**2/sigma_y_obs[i]**2
+        if(model==3):
+            l += -0.5*(y_obs[i]-model_C(x_obs[i], betas))**2/sigma_y_obs[i]**2
+    return l
+
+n_iterations = 10000
+
+def mcmc(n_betas):
+    loglike_max1 = 0
+    loglike_max2 = 0
+    loglike_max3 = 0
+    
+    betas1 = np.zeros([n_iterations, n_betas[0]])
+    betas2 = np.zeros([n_iterations, n_betas[1]])
+    betas3 = np.zeros([n_iterations, n_betas[2]])
+    
+    for i in range(n_iterations):
+        temp_b1 = betas1[i,:]
+        next_b1 = temp_b1 + np.random.normal(scale=0.01, size=n_betas[0])
+        loglike_current1 = loglike(x_obs, y_obs, sigma_y_obs, temp_b1,1)
+        loglike_next1 = loglike(x_obs, y_obs, sigma_y_obs, next_b1,1)
+
+        temp_b2 = betas2[i,:]
+        next_b2 = temp_b2 + np.random.normal(scale=0.01, size=n_betas[1])
+        loglike_current2 = loglike(x_obs, y_obs, sigma_y_obs, temp_b2,2)
+        loglike_next2 = loglike(x_obs, y_obs, sigma_y_obs, next_b2,2)
+        
+        temp_b3 = betas3[i,:]
+        next_b3 = temp_b3 + np.random.normal(scale=0.01, size=n_betas[2])
+        loglike_current3 = loglike(x_obs, y_obs, sigma_y_obs, temp_b3,3)
+        loglike_next3 = loglike(x_obs, y_obs, sigma_y_obs, next_b3,3)
+
+        if(loglike_next1>loglike_max1):
+            loglike_max1 = loglike_next1
+        if(loglike_next2>loglike_max2):
+            loglike_max2 = loglike_next2
+        if(loglike_next3>loglike_max2):
+            loglike_max3 = loglike_next3
+        
+        
+        alpha = np.random.random()
+        
+        r1 = np.min([np.exp(loglike_next1 - loglike_current1), 1.0])
+        if alpha < r1:
+            betas1[i,:] = next_b1
+        else:
+            betas1[i,:] = temp_b1
+            
+        r2 = np.min([np.exp(loglike_next1 - loglike_current1), 1.0])
+        if alpha < r2:
+            betas2[i,:] = next_b2
+        else:
+            betas2[i,:] = temp_b2
+            
+        r3 = np.min([np.exp(loglike_next1 - loglike_current1), 1.0])
+        if alpha < r3:
+            betas3[i,:] = next_b3
+        else:
+            betas3[i,:] = temp_b3
+           
+    return betas1,betas2,betas3
